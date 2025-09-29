@@ -94,6 +94,9 @@ function App() {
   }, [yaks]);
 
   useEffect(() => {
+    // Store timer IDs for cleanup
+    const timers = [];
+    
     const init = async () => {
       // Setup connection change handler
       P2PService.setOnConnectionChange((count) => {
@@ -164,11 +167,12 @@ function App() {
         setStatus(`✓ This device is the host for zone: ${locationCode}. Waiting for peers...`);
         
         // Set a timer to check if we got any connections
-        setTimeout(() => {
+        const hostCheckTimer = setTimeout(() => {
           if (P2PService.getConnectionCount() === 0) {
             setStatus(`Host active (${locationCode}). No peers yet - try opening another tab or share with friends!`);
           }
         }, 5000);
+        timers.push(hostCheckTimer);
       } catch (error) {
         console.log("Host connection error:", error);
         
@@ -183,7 +187,10 @@ function App() {
             setStatus(`✓ Connected as client (ID: ${myId.substring(0, 8)}...). Linking to host...`);
             
             // Give the peer a moment to fully initialize
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => {
+              const delayTimer = setTimeout(resolve, 1000);
+              timers.push(delayTimer);
+            });
             
             // Connect to the zone host
             P2PService.connectToPeer(locationCode);
@@ -205,15 +212,17 @@ function App() {
                 setStatus(`Connecting to peers... (attempt ${attempts}/${maxAttempts})`);
               }
             }, 1000);
+            timers.push(checkConnection);
             
           } catch (clientError) {
             setStatus('Error: Failed to connect as client. Check console for details.');
             console.error("Client connection error:", clientError);
             
             // Provide recovery options
-            setTimeout(() => {
+            const errorTimer = setTimeout(() => {
               setStatus('Error: Connection failed. Try refreshing the page or check your internet connection.');
             }, 2000);
+            timers.push(errorTimer);
           }
         } else if (error.message && error.message.includes('timeout')) {
           setStatus('Error: Connection timeout. Check your internet connection or firewall settings.');
@@ -229,6 +238,11 @@ function App() {
 
     // Cleanup on unmount
     return () => {
+      // Clear all timers to prevent memory leaks and React warnings
+      timers.forEach(timer => {
+        clearTimeout(timer);
+        clearInterval(timer);
+      });
       // Note: We don't destroy P2PService here as it's a singleton
       // In a real app, you might want to handle this differently
     };
