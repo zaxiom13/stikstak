@@ -3,28 +3,78 @@ import styled from 'styled-components';
 import Header from './components/Header';
 import YakForm from './components/YakForm';
 import YakFeed from './components/YakFeed';
+import Welcome from './components/Welcome';
 import P2PService from './services/P2PService';
 import { getLocationCode } from './services/location';
 import './App.css';
 
 const AppWrapper = styled.div`
-  background-color: #f0f2f5;
+  background: linear-gradient(to bottom, #f0f2f5 0%, #e8eaf0 100%);
   min-height: 100vh;
 `;
 
-const Status = styled.div`
-  padding: 10px;
-  background: #fffbe6;
-  border: 1px solid #ffe58f;
+const StatusBar = styled.div`
+  padding: 12px;
+  background: ${props => {
+    if (props.status.includes('Error')) return '#ffebee';
+    if (props.status.includes('Connected') || props.status.includes('host')) return '#e8f5e9';
+    return '#fff9e6';
+  }};
+  border-bottom: 1px solid ${props => {
+    if (props.status.includes('Error')) return '#ef9a9a';
+    if (props.status.includes('Connected') || props.status.includes('host')) return '#a5d6a7';
+    return '#ffe58f';
+  }};
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9em;
+  color: #555;
+  transition: all 0.3s;
+  flex-wrap: wrap;
+  gap: 10px;
+`;
+
+const StatusText = styled.div`
+  flex: 1;
   text-align: center;
 `;
 
+const ConnectionBadge = styled.div`
+  background: ${props => props.count > 0 ? '#4CAF50' : '#999'};
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+`;
+
+const Container = styled.div`
+  max-width: 800px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+`;
+
 const YAK_CACHE_KEY = 'yikyak_clone_cache';
+const WELCOME_SEEN_KEY = 'yikyak_welcome_seen';
 
 function App() {
   const [yaks, setYaks] = useState([]);
   const [peerId, setPeerId] = useState(null);
   const [status, setStatus] = useState('Initializing...');
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [connectionCount, setConnectionCount] = useState(0);
+
+  // Check if user has seen welcome screen
+  useEffect(() => {
+    const hasSeenWelcome = localStorage.getItem(WELCOME_SEEN_KEY);
+    if (!hasSeenWelcome) {
+      setShowWelcome(true);
+    }
+  }, []);
 
   // Load from cache on initial render
   useEffect(() => {
@@ -44,6 +94,11 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
+      // Setup connection change handler
+      P2PService.setOnConnectionChange((count) => {
+        setConnectionCount(count);
+      });
+
       // Setup message handler
       P2PService.setOnMessageReceived((data) => {
         if (data.type === 'NEW_YAK') {
@@ -52,6 +107,30 @@ function App() {
               return prevYaks;
             }
             return [data.payload, ...prevYaks];
+          });
+        } else if (data.type === 'VOTE') {
+          setYaks(prevYaks => {
+            return prevYaks.map(yak => {
+              if (yak.id === data.payload.yakId) {
+                const votes = { ...yak.votes };
+                const { voterId, voteType } = data.payload;
+
+                // Apply the vote
+                if (votes[voterId] === voteType) {
+                  delete votes[voterId];
+                } else {
+                  votes[voterId] = voteType;
+                }
+
+                // Recalculate score
+                const score = Object.values(votes).reduce((sum, vote) => {
+                  return sum + (vote === 'up' ? 1 : -1);
+                }, 0);
+
+                return { ...yak, votes, score };
+              }
+              return yak;
+            });
           });
         }
       });
@@ -98,18 +177,67 @@ function App() {
       text,
       score: 0,
       timestamp: Date.now(),
+      votes: {},
     };
 
     setYaks(prevYaks => [newYak, ...prevYaks]);
     P2PService.broadcast({ type: 'NEW_YAK', payload: newYak });
   };
 
+  const handleVote = (yakId, voteType) => {
+    if (!peerId) {
+      return;
+    }
+
+    setYaks(prevYaks => {
+      return prevYaks.map(yak => {
+        if (yak.id === yakId) {
+          const votes = { ...yak.votes };
+          const previousVote = votes[peerId];
+
+          // Toggle vote logic
+          if (previousVote === voteType) {
+            delete votes[peerId];
+          } else {
+            votes[peerId] = voteType;
+          }
+
+          // Calculate new score
+          const score = Object.values(votes).reduce((sum, vote) => {
+            return sum + (vote === 'up' ? 1 : -1);
+          }, 0);
+
+          return { ...yak, votes, score };
+        }
+        return yak;
+      });
+    });
+
+    P2PService.broadcast({ 
+      type: 'VOTE', 
+      payload: { yakId, voteType, voterId: peerId } 
+    });
+  };
+
+  const handleCloseWelcome = () => {
+    localStorage.setItem(WELCOME_SEEN_KEY, 'true');
+    setShowWelcome(false);
+  };
+
   return (
     <AppWrapper>
+      {showWelcome && <Welcome onClose={handleCloseWelcome} />}
       <Header />
-      <Status>{status}</Status>
-      <YakForm onSubmit={handleNewYak} />
-      <YakFeed yaks={yaks} />
+      <StatusBar status={status}>
+        <StatusText>{status}</StatusText>
+        <ConnectionBadge count={connectionCount}>
+          🌐 {connectionCount} peer{connectionCount !== 1 ? 's' : ''}
+        </ConnectionBadge>
+      </StatusBar>
+      <Container>
+        <YakForm onSubmit={handleNewYak} />
+        <YakFeed yaks={yaks} onVote={handleVote} currentUserId={peerId} />
+      </Container>
     </AppWrapper>
   );
 }

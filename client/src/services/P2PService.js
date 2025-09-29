@@ -5,6 +5,7 @@ class P2PService {
     this.peer = null;
     this.connections = [];
     this.onMessageReceived = () => {};
+    this.onConnectionChange = () => {};
   }
 
   connect(peerId) {
@@ -34,15 +35,20 @@ class P2PService {
   addConnection(conn) {
     if (!this.connections.find(c => c.peer === conn.peer)) {
       this.connections.push(conn);
+      this.onConnectionChange(this.connections.length);
 
       conn.on('data', (data) => {
         console.log('Received data:', data);
         this.onMessageReceived(data);
+        
+        // Relay the message to other peers (mesh network)
+        this.relay(data, conn.peer);
       });
 
       conn.on('close', () => {
         console.log('Connection closed with: ' + conn.peer);
         this.connections = this.connections.filter(c => c.peer !== conn.peer);
+        this.onConnectionChange(this.connections.length);
       });
     }
   }
@@ -62,8 +68,46 @@ class P2PService {
 
   broadcast(data) {
     console.log('Broadcasting data:', data);
+    // Add timestamp and message ID to prevent loops
+    const message = {
+      ...data,
+      _id: `${this.peer.id}-${Date.now()}-${Math.random()}`,
+      _timestamp: Date.now()
+    };
+    
     this.connections.forEach(conn => {
       if (conn.open) {
+        conn.send(message);
+      }
+    });
+  }
+
+  relay(data, sourcePeer) {
+    // Relay messages to other peers (except the source)
+    // This creates a mesh network where messages propagate
+    const seenKey = `seen_${data._id}`;
+    
+    // Check if we've already seen this message
+    if (this.seenMessages && this.seenMessages[seenKey]) {
+      return;
+    }
+    
+    // Mark message as seen
+    if (!this.seenMessages) {
+      this.seenMessages = {};
+    }
+    this.seenMessages[seenKey] = true;
+    
+    // Clean up old seen messages (keep last 1000)
+    const seenKeys = Object.keys(this.seenMessages);
+    if (seenKeys.length > 1000) {
+      const toRemove = seenKeys.slice(0, seenKeys.length - 1000);
+      toRemove.forEach(key => delete this.seenMessages[key]);
+    }
+    
+    // Relay to other peers
+    this.connections.forEach(conn => {
+      if (conn.open && conn.peer !== sourcePeer) {
         conn.send(data);
       }
     });
@@ -72,6 +116,15 @@ class P2PService {
   setOnMessageReceived(callback) {
     this.onMessageReceived = callback;
   }
+
+  setOnConnectionChange(callback) {
+    this.onConnectionChange = callback;
+  }
+
+  getConnectionCount() {
+    return this.connections.length;
+  }
 }
 
-export default new P2PService();
+const p2pServiceInstance = new P2PService();
+export default p2pServiceInstance;

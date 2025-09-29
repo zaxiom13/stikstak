@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "YikYak Clone",
+  "name": "YikYak Clone - P2P Local Chat",
+  "description": "Decentralized anonymous local chat app",
   "icons": [
     {
       "src": "favicon.ico",
@@ -20,6 +21,7 @@
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#667eea",
+  "background_color": "#f0f2f5",
+  "orientation": "portrait"
 }
