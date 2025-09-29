@@ -14,6 +14,17 @@ class P2PService {
   connect(peerId) {
     return new Promise((resolve, reject) => {
       try {
+        // Validate peer ID format (PeerJS requirements)
+        if (peerId) {
+          // PeerJS doesn't allow consecutive dashes, spaces, or certain special chars
+          if (/--/.test(peerId) || /\s/.test(peerId)) {
+            const error = new Error(`Invalid peer ID format: "${peerId}". Cannot contain consecutive dashes or spaces.`);
+            console.error('Peer ID validation failed:', error);
+            reject(error);
+            return;
+          }
+        }
+
         const config = {
           // For simplicity, we'll use the public PeerJS server.
           // In a real application, you would host your own.

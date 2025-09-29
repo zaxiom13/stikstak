@@ -13,10 +13,16 @@ const generateLocationCode = (latitude, longitude) => {
   const latZone = Math.floor(latitude * 100);
   const lonZone = Math.floor(longitude * 100);
 
-  // Get the current date as YYYY-MM-DD
-  const today = new Date().toISOString().slice(0, 10);
+  // Convert to safe format (PeerJS doesn't allow consecutive dashes or certain special chars)
+  // Replace negative signs with 'n' prefix (e.g., -2 becomes 'n2')
+  const latSafe = latZone < 0 ? `n${Math.abs(latZone)}` : latZone;
+  const lonSafe = lonZone < 0 ? `n${Math.abs(lonZone)}` : lonZone;
 
-  return `yikyak-zone-${latZone}-${lonZone}-${today}`;
+  // Get the current date as YYYY-MM-DD, replace dashes with underscores
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+  // Use underscores instead of dashes to avoid PeerJS ID validation issues
+  return `yikyak_zone_${latSafe}_${lonSafe}_${today}`;
 };
 
 export const getLocationCode = async () => {
@@ -28,7 +34,7 @@ export const getLocationCode = async () => {
     console.error("Error getting location:", error);
     // Fallback for when location is denied or fails.
     // This allows the app to still function, but in a global "denied" room.
-    const today = new Date().toISOString().slice(0, 10);
-    return `yikyak-zone-denied-${today}`;
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    return `yikyak_zone_denied_${today}`;
   }
 };
