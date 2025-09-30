@@ -4,6 +4,7 @@ import Header from './components/Header';
 import YakForm from './components/YakForm';
 import YakFeed from './components/YakFeed';
 import Welcome from './components/Welcome';
+import DebugPanel from './components/DebugPanel';
 import P2PService from './services/P2PService';
 import { getLocationCode } from './services/location';
 import './App.css';
@@ -93,10 +94,21 @@ function App() {
   }, [yaks]);
 
   useEffect(() => {
+    // Store timer IDs for cleanup
+    const timers = [];
+    
     const init = async () => {
       // Setup connection change handler
       P2PService.setOnConnectionChange((count) => {
         setConnectionCount(count);
+        if (count > 0) {
+          setStatus(prev => {
+            if (prev.includes('Error')) {
+              return prev.replace('Error: ', '');
+            }
+            return prev;
+          });
+        }
       });
 
       // Setup message handler
@@ -136,35 +148,104 @@ function App() {
       });
 
       setStatus('Getting location code...');
-      const locationCode = await getLocationCode();
-
+      let locationCode;
+      
       try {
-        setStatus(`Trying to become host for zone: ${locationCode}`);
-        await P2PService.connect(locationCode);
-        setPeerId(locationCode);
-        setStatus(`This device is the host for zone: ${locationCode}`);
+        locationCode = await getLocationCode();
+        setStatus(`Location detected. Zone: ${locationCode}`);
       } catch (error) {
-        if (error.type === 'unavailable-id') {
-          // ID is taken, so we connect as a client.
-          setStatus(`Zone host found. Connecting as a client...`);
-          try {
-            const myId = await P2PService.connect(); // Connect with random ID
-            setPeerId(myId);
-            setStatus(`Connected as client with ID: ${myId}. Linking to host...`);
-            P2PService.connectToPeer(locationCode);
-            setStatus(`Connection established with host in zone: ${locationCode}`);
-          } catch (clientError) {
-            setStatus('Error: Failed to connect as a client.');
-            console.error("Client connection error:", clientError);
+        setStatus('Warning: Could not get location. Using fallback zone.');
+        console.error("Location error:", error);
+        locationCode = await getLocationCode(); // Will use fallback
+      }
+
+      // Attempt to become host
+      try {
+        setStatus(`Attempting to become host for zone: ${locationCode}...`);
+        const hostId = await P2PService.connect(locationCode);
+        setPeerId(hostId);
+        setStatus(`✓ This device is the host for zone: ${locationCode}. Waiting for peers...`);
+        
+        // Set a timer to check if we got any connections
+        const hostCheckTimer = setTimeout(() => {
+          if (P2PService.getConnectionCount() === 0) {
+            setStatus(`Host active (${locationCode}). No peers yet - try opening another tab or share with friends!`);
           }
+        }, 5000);
+        timers.push(hostCheckTimer);
+      } catch (error) {
+        console.log("Host connection error:", error);
+        
+        // If ID is unavailable, connect as client
+        if (error.type === 'unavailable-id') {
+          setStatus(`Host exists. Connecting as client...`);
+          
+          try {
+            // Connect with random ID
+            const myId = await P2PService.connect();
+            setPeerId(myId);
+            setStatus(`✓ Connected as client (ID: ${myId.substring(0, 8)}...). Linking to host...`);
+            
+            // Give the peer a moment to fully initialize
+            await new Promise(resolve => {
+              const delayTimer = setTimeout(resolve, 1000);
+              timers.push(delayTimer);
+            });
+            
+            // Connect to the zone host
+            P2PService.connectToPeer(locationCode);
+            
+            // Wait for connection to establish
+            let attempts = 0;
+            const maxAttempts = 10;
+            const checkConnection = setInterval(() => {
+              const count = P2PService.getConnectionCount();
+              attempts++;
+              
+              if (count > 0) {
+                clearInterval(checkConnection);
+                setStatus(`✓ Connected to ${count} peer(s) in zone: ${locationCode}`);
+              } else if (attempts >= maxAttempts) {
+                clearInterval(checkConnection);
+                setStatus(`Warning: Connected to network but no peers found. You can still post!`);
+              } else {
+                setStatus(`Connecting to peers... (attempt ${attempts}/${maxAttempts})`);
+              }
+            }, 1000);
+            timers.push(checkConnection);
+            
+          } catch (clientError) {
+            setStatus('Error: Failed to connect as client. Check console for details.');
+            console.error("Client connection error:", clientError);
+            
+            // Provide recovery options
+            const errorTimer = setTimeout(() => {
+              setStatus('Error: Connection failed. Try refreshing the page or check your internet connection.');
+            }, 2000);
+            timers.push(errorTimer);
+          }
+        } else if (error.message && error.message.includes('timeout')) {
+          setStatus('Error: Connection timeout. Check your internet connection or firewall settings.');
+          console.error("Connection timeout:", error);
         } else {
-          setStatus('Error: Could not initialize P2P connection.');
+          setStatus('Error: Could not initialize P2P. Check console for details.');
           console.error("P2P initialization error:", error);
         }
       }
     };
 
     init();
+
+    // Cleanup on unmount
+    return () => {
+      // Clear all timers to prevent memory leaks and React warnings
+      timers.forEach(timer => {
+        clearTimeout(timer);
+        clearInterval(timer);
+      });
+      // Note: We don't destroy P2PService here as it's a singleton
+      // In a real app, you might want to handle this differently
+    };
   }, []);
 
   const handleNewYak = (text) => {
@@ -238,6 +319,7 @@ function App() {
         <YakForm onSubmit={handleNewYak} />
         <YakFeed yaks={yaks} onVote={handleVote} currentUserId={peerId} />
       </Container>
+      {process.env.NODE_ENV !== 'test' && <DebugPanel />}
     </AppWrapper>
   );
 }
