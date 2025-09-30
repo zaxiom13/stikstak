@@ -34,11 +34,28 @@ const StatusBar = styled.div`
   transition: all 0.3s;
   flex-wrap: wrap;
   gap: 10px;
+
+  @media (max-width: 768px) {
+    padding: 10px;
+    font-size: 0.85em;
+    gap: 8px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 8px;
+    font-size: 0.8em;
+    gap: 6px;
+  }
 `;
 
 const StatusText = styled.div`
   flex: 1;
   text-align: center;
+  min-width: 120px;
+
+  @media (max-width: 480px) {
+    font-size: 0.9em;
+  }
 `;
 
 const ConnectionBadge = styled.div`
@@ -51,12 +68,25 @@ const ConnectionBadge = styled.div`
   display: flex;
   align-items: center;
   gap: 5px;
+
+  @media (max-width: 480px) {
+    padding: 4px 10px;
+    font-size: 0.8em;
+  }
 `;
 
 const Container = styled.div`
   max-width: 800px;
   margin: 0 auto;
   padding-bottom: 40px;
+
+  @media (max-width: 768px) {
+    padding-bottom: 30px;
+  }
+
+  @media (max-width: 480px) {
+    padding-bottom: 20px;
+  }
 `;
 
 const YAK_CACHE_KEY = 'yikyak_clone_cache';

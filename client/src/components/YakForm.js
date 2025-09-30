@@ -7,6 +7,17 @@ const FormWrapper = styled.div`
   border-radius: 8px;
   margin: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  @media (max-width: 768px) {
+    margin: 15px;
+    padding: 16px;
+  }
+
+  @media (max-width: 480px) {
+    margin: 10px;
+    padding: 12px;
+    border-radius: 6px;
+  }
 `;
 
 const TextArea = styled.textarea`
@@ -29,6 +40,16 @@ const TextArea = styled.textarea`
   &::placeholder {
     color: #999;
   }
+
+  @media (max-width: 768px) {
+    height: 90px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+
+  @media (max-width: 480px) {
+    height: 80px;
+    padding: 10px;
+  }
 `;
 
 const BottomRow = styled.div`
@@ -36,11 +57,21 @@ const BottomRow = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-top: 10px;
+  gap: 10px;
+
+  @media (max-width: 480px) {
+    margin-top: 8px;
+    gap: 8px;
+  }
 `;
 
 const CharCount = styled.span`
   font-size: 0.9em;
   color: ${props => props.warning ? '#f44336' : '#666'};
+
+  @media (max-width: 480px) {
+    font-size: 0.85em;
+  }
 `;
 
 const SubmitButton = styled.button`
@@ -53,6 +84,7 @@ const SubmitButton = styled.button`
   font-size: 1em;
   font-weight: 600;
   transition: background-color 0.2s;
+  min-height: 44px; /* Touch-friendly on mobile */
 
   &:hover {
     background-color: ${props => props.disabled ? '#ccc' : '#45a049'};
@@ -60,6 +92,15 @@ const SubmitButton = styled.button`
 
   &:active {
     transform: ${props => props.disabled ? 'none' : 'scale(0.98)'};
+  }
+
+  @media (max-width: 768px) {
+    font-size: 16px; /* Prevents iOS zoom */
+  }
+
+  @media (max-width: 480px) {
+    padding: 10px 16px;
+    font-size: 0.95em;
   }
 `;
 

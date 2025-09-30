@@ -25,6 +25,8 @@ const Modal = styled.div`
   border-radius: 12px;
   padding: 30px;
   max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
   margin: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   animation: slideUp 0.3s ease-out;
@@ -39,6 +41,19 @@ const Modal = styled.div`
       opacity: 1;
     }
   }
+
+  @media (max-width: 768px) {
+    padding: 24px;
+    margin: 15px;
+    max-width: calc(100vw - 30px);
+  }
+
+  @media (max-width: 480px) {
+    padding: 20px;
+    margin: 10px;
+    max-width: calc(100vw - 20px);
+    border-radius: 10px;
+  }
 `;
 
 const Title = styled.h2`
@@ -46,28 +61,66 @@ const Title = styled.h2`
   font-size: 1.8em;
   color: #333;
   text-align: center;
+
+  @media (max-width: 768px) {
+    font-size: 1.6em;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1.4em;
+    margin-bottom: 12px;
+  }
 `;
 
 const Icon = styled.div`
   font-size: 3em;
   text-align: center;
   margin-bottom: 20px;
+
+  @media (max-width: 768px) {
+    font-size: 2.5em;
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 2em;
+    margin-bottom: 12px;
+  }
 `;
 
 const Section = styled.div`
   margin-bottom: 20px;
+
+  @media (max-width: 768px) {
+    margin-bottom: 16px;
+  }
+
+  @media (max-width: 480px) {
+    margin-bottom: 12px;
+  }
 `;
 
 const SectionTitle = styled.h3`
   font-size: 1.1em;
   color: #667eea;
   margin: 0 0 10px 0;
+
+  @media (max-width: 480px) {
+    font-size: 1.05em;
+    margin-bottom: 8px;
+  }
 `;
 
 const Text = styled.p`
   line-height: 1.6;
   color: #555;
   margin: 0 0 10px 0;
+
+  @media (max-width: 480px) {
+    font-size: 0.95em;
+    line-height: 1.5;
+  }
 `;
 
 const List = styled.ul`
@@ -75,6 +128,12 @@ const List = styled.ul`
   padding-left: 20px;
   color: #555;
   line-height: 1.8;
+
+  @media (max-width: 480px) {
+    font-size: 0.95em;
+    line-height: 1.6;
+    padding-left: 16px;
+  }
 `;
 
 const Button = styled.button`
@@ -89,6 +148,7 @@ const Button = styled.button`
   width: 100%;
   margin-top: 10px;
   transition: transform 0.2s;
+  min-height: 48px;
 
   &:hover {
     transform: translateY(-2px);
@@ -97,6 +157,17 @@ const Button = styled.button`
   &:active {
     transform: translateY(0);
   }
+
+  @media (max-width: 768px) {
+    font-size: 1.05em;
+    padding: 12px 24px;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1em;
+    padding: 12px 20px;
+    min-height: 44px;
+  }
 `;
 
 const SmallText = styled.p`
@@ -104,6 +175,11 @@ const SmallText = styled.p`
   color: #888;
   text-align: center;
   margin-top: 15px;
+
+  @media (max-width: 480px) {
+    font-size: 0.8em;
+    margin-top: 12px;
+  }
 `;
 
 const Welcome = ({ onClose }) => {
