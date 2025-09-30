@@ -4,8 +4,8 @@ import P2PService from '../services/P2PService';
 
 const DebugContainer = styled.div`
   position: fixed;
-  bottom: 20px;
-  right: 20px;
+  top: 10px;
+  left: 10px;
   background: rgba(0, 0, 0, 0.9);
   color: #0f0;
   font-family: 'Courier New', monospace;
@@ -23,6 +23,20 @@ const DebugContainer = styled.div`
     max-height: 40px;
     overflow: hidden;
   `}
+
+  @media (max-width: 768px) {
+    max-width: calc(100vw - 20px);
+    max-height: 400px;
+    font-size: 10px;
+    padding: 10px;
+  }
+
+  @media (max-width: 480px) {
+    max-width: calc(100vw - 20px);
+    max-height: 300px;
+    font-size: 9px;
+    padding: 8px;
+  }
 `;
 
 const DebugHeader = styled.div`
@@ -102,21 +116,32 @@ const LogEntry = styled.div`
 
 const ToggleButton = styled.button`
   position: fixed;
-  bottom: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.9);
+  top: 10px;
+  left: 10px;
+  background: rgba(0, 0, 0, 0.85);
   color: #0f0;
   border: 2px solid #0f0;
-  padding: 10px 15px;
+  padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
   font-family: 'Courier New', monospace;
-  font-size: 12px;
+  font-size: 11px;
   z-index: 9998;
+  transition: all 0.2s;
   
   &:hover {
     background: #0f0;
     color: #000;
+  }
+
+  @media (max-width: 768px) {
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 5px 8px;
+    font-size: 9px;
   }
 `;
 

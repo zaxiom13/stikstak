@@ -13,6 +13,17 @@ const YakWrapper = styled.div`
   &:hover {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
   }
+
+  @media (max-width: 768px) {
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 6px;
+  }
 `;
 
 const YakContent = styled.p`
@@ -20,12 +31,28 @@ const YakContent = styled.p`
   line-height: 1.5;
   margin: 0;
   color: #333;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+
+  @media (max-width: 768px) {
+    font-size: 1.05em;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 1em;
+    line-height: 1.4;
+  }
 `;
 
 const YakMeta = styled.div`
   font-size: 0.85em;
   color: #888;
   margin-top: 8px;
+
+  @media (max-width: 480px) {
+    font-size: 0.8em;
+    margin-top: 6px;
+  }
 `;
 
 const YakActions = styled.div`
@@ -33,12 +60,20 @@ const YakActions = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+
+  @media (max-width: 480px) {
+    margin-top: 10px;
+  }
 `;
 
 const VoteSection = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+
+  @media (max-width: 480px) {
+    gap: 6px;
+  }
 `;
 
 const VoteButton = styled.button`
@@ -50,6 +85,8 @@ const VoteButton = styled.button`
   border-radius: 4px;
   font-size: 1.1em;
   transition: all 0.2s;
+  min-height: 44px; /* Touch-friendly */
+  min-width: 44px;
 
   &:hover {
     background: ${props => props.active ? '#45a049' : '#f5f5f5'};
@@ -59,6 +96,13 @@ const VoteButton = styled.button`
   &:active {
     transform: scale(0.95);
   }
+
+  @media (max-width: 480px) {
+    padding: 6px 10px;
+    font-size: 1em;
+    min-height: 40px;
+    min-width: 40px;
+  }
 `;
 
 const Score = styled.span`
@@ -67,6 +111,11 @@ const Score = styled.span`
   color: ${props => props.score > 0 ? '#4CAF50' : props.score < 0 ? '#f44336' : '#666'};
   min-width: 30px;
   text-align: center;
+
+  @media (max-width: 480px) {
+    font-size: 1em;
+    min-width: 24px;
+  }
 `;
 
 const TimeAgo = styled.span`
