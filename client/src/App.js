@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import Header from './components/Header';
 import YakForm from './components/YakForm';
@@ -68,6 +68,7 @@ function App() {
   const [status, setStatus] = useState('Initializing...');
   const [showWelcome, setShowWelcome] = useState(false);
   const [connectionCount, setConnectionCount] = useState(0);
+  const yaksRef = useRef([]);
 
   // Check if user has seen welcome screen
   useEffect(() => {
@@ -86,8 +87,9 @@ function App() {
     setYaks(validYaks);
   }, []);
 
-  // Save to cache whenever yaks change
+  // Save to cache whenever yaks change and update ref
   useEffect(() => {
+    yaksRef.current = yaks;
     if (yaks.length > 0) {
       localStorage.setItem(YAK_CACHE_KEY, JSON.stringify(yaks));
     }
@@ -149,7 +151,7 @@ function App() {
         } else if (data.type === 'REQUEST_MESSAGES') {
           // Peer is requesting all our messages, send them all
           console.log('Peer requested messages, publishing all yaks...');
-          yaks.forEach(yak => {
+          yaksRef.current.forEach(yak => {
             P2PService.broadcast({ type: 'NEW_YAK', payload: yak });
           });
         } else if (data.type === 'SYNC_MESSAGES') {

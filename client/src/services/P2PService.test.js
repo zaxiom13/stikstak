@@ -597,4 +597,4 @@ describe('P2PService', () => {
       expect(P2PService.fetchInterval).toBeNull();
     });
   });
-});}
+});
