@@ -9,6 +9,16 @@ class P2PService {
     this.connectionTimeout = 10000; // 10 seconds
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 3;
+    this.locationCode = null;
+    this.messageCache = new Map(); // For deduplication
+    this.publishInterval = null;
+    this.fetchInterval = null;
+    this.syncIntervalTime = 5000; // 5 seconds
+  }
+
+  setLocationCode(locationCode) {
+    this.locationCode = locationCode;
+    console.log(`Location code set to: ${locationCode}`);
   }
 
   connect(peerId) {
@@ -165,6 +175,18 @@ class P2PService {
     conn.on('data', (data) => {
       try {
         console.log('Received data from ' + conn.peer + ':', data);
+        
+        // Deduplicate: Check if message already cached
+        if (data._id && this.isMessageCached(data._id)) {
+          console.log('Duplicate message received, ignoring:', data._id);
+          return;
+        }
+        
+        // Cache the message
+        if (data._id) {
+          this.cacheMessage(data);
+        }
+        
         this.onMessageReceived(data);
         
         // Relay the message to other peers (mesh network)
@@ -257,12 +279,16 @@ class P2PService {
 
     console.log('Broadcasting data to ' + this.connections.length + ' peer(s)');
     
-    // Add timestamp and message ID to prevent loops
+    // Add timestamp, message ID, and location code to prevent loops and ensure location tracking
     const message = {
       ...data,
       _id: `${this.peer.id}-${Date.now()}-${Math.random()}`,
-      _timestamp: Date.now()
+      _timestamp: Date.now(),
+      _locationCode: this.locationCode
     };
+    
+    // Cache message for deduplication
+    this.cacheMessage(message);
     
     let successCount = 0;
     this.connections.forEach(conn => {
@@ -280,6 +306,40 @@ class P2PService {
     });
     
     console.log(`Broadcast sent to ${successCount} peer(s)`);
+    return message;
+  }
+
+  cacheMessage(message) {
+    if (!message._id) return;
+    
+    // Cache message for deduplication
+    this.messageCache.set(message._id, {
+      message,
+      timestamp: Date.now()
+    });
+    
+    // Clean up old cached messages (keep last 24 hours)
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    
+    for (const [id, cached] of this.messageCache.entries()) {
+      if (now - cached.timestamp > maxAge) {
+        this.messageCache.delete(id);
+      }
+    }
+    
+    // Limit cache size (keep last 1000 messages)
+    if (this.messageCache.size > 1000) {
+      const entries = Array.from(this.messageCache.entries());
+      const toRemove = entries
+        .sort((a, b) => a[1].timestamp - b[1].timestamp)
+        .slice(0, entries.length - 1000);
+      toRemove.forEach(([id]) => this.messageCache.delete(id));
+    }
+  }
+
+  isMessageCached(messageId) {
+    return this.messageCache.has(messageId);
   }
 
   relay(data, sourcePeer) {
@@ -288,28 +348,14 @@ class P2PService {
       return;
     }
 
-    // Relay messages to other peers (except the source)
-    // This creates a mesh network where messages propagate
-    const seenKey = `seen_${data._id}`;
-    
-    // Check if we've already seen this message
-    if (this.seenMessages && this.seenMessages[seenKey]) {
-      console.log('Message already seen, skipping relay');
+    // Check if we've already seen this message using the message cache
+    if (this.isMessageCached(data._id)) {
+      console.log('Message already seen (cached), skipping relay');
       return;
     }
     
-    // Mark message as seen
-    if (!this.seenMessages) {
-      this.seenMessages = {};
-    }
-    this.seenMessages[seenKey] = true;
-    
-    // Clean up old seen messages (keep last 1000)
-    const seenKeys = Object.keys(this.seenMessages);
-    if (seenKeys.length > 1000) {
-      const toRemove = seenKeys.slice(0, seenKeys.length - 1000);
-      toRemove.forEach(key => delete this.seenMessages[key]);
-    }
+    // Cache the message
+    this.cacheMessage(data);
     
     // Relay to other peers
     let relayCount = 0;
@@ -350,8 +396,75 @@ class P2PService {
     return this.peer && !this.peer.destroyed && !this.peer.disconnected;
   }
 
+  startPeriodicSync(publishCallback, fetchCallback) {
+    console.log(`Starting periodic sync every ${this.syncIntervalTime}ms`);
+    
+    // Stop any existing intervals
+    this.stopPeriodicSync();
+    
+    // Periodic publish: Send out our messages to ensure all peers have them
+    this.publishInterval = setInterval(() => {
+      if (this.connections.length > 0) {
+        console.log('[Periodic Sync] Publishing messages...');
+        if (publishCallback) {
+          publishCallback();
+        }
+      }
+    }, this.syncIntervalTime);
+    
+    // Periodic fetch: Request messages from peers
+    this.fetchInterval = setInterval(() => {
+      if (this.connections.length > 0) {
+        console.log('[Periodic Sync] Requesting messages from peers...');
+        this.requestMessagesFromPeers();
+        if (fetchCallback) {
+          fetchCallback();
+        }
+      }
+    }, this.syncIntervalTime);
+  }
+
+  stopPeriodicSync() {
+    if (this.publishInterval) {
+      clearInterval(this.publishInterval);
+      this.publishInterval = null;
+    }
+    if (this.fetchInterval) {
+      clearInterval(this.fetchInterval);
+      this.fetchInterval = null;
+    }
+    console.log('Stopped periodic sync');
+  }
+
+  requestMessagesFromPeers() {
+    // Send a request for all messages to all peers
+    const request = {
+      type: 'REQUEST_MESSAGES',
+      _id: `${this.peer?.id || 'unknown'}-${Date.now()}-${Math.random()}`,
+      _timestamp: Date.now(),
+      _locationCode: this.locationCode
+    };
+    
+    this.connections.forEach(conn => {
+      try {
+        if (conn.open) {
+          conn.send(request);
+        }
+      } catch (error) {
+        console.error(`Error requesting messages from ${conn.peer}:`, error);
+      }
+    });
+  }
+
+  getAllCachedMessages() {
+    return Array.from(this.messageCache.values()).map(cached => cached.message);
+  }
+
   destroy() {
     console.log('Destroying P2P service');
+    
+    // Stop periodic sync
+    this.stopPeriodicSync();
     
     // Close all connections
     this.connections.forEach(conn => {

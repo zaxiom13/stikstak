@@ -94,10 +94,12 @@ describe('P2PService', () => {
     }
     P2PService.peer = null;
     P2PService.connections = [];
-    P2PService.seenMessages = {};
+    P2PService.messageCache = new Map();
     P2PService.onMessageReceived = () => {};
     P2PService.onConnectionChange = () => {};
     P2PService.reconnectAttempts = 0;
+    P2PService.locationCode = null;
+    P2PService.stopPeriodicSync();
   });
 
   afterEach(() => {
@@ -330,12 +332,14 @@ describe('P2PService', () => {
         }
       };
 
+      P2PService.setLocationCode('test-location');
       P2PService.addConnection(mockConn);
       P2PService.broadcast({ type: 'TEST' });
 
       const sentMessage = mockConn.send.mock.calls[0][0];
       expect(sentMessage._id).toBeDefined();
       expect(sentMessage._timestamp).toBeDefined();
+      expect(sentMessage._locationCode).toBe('test-location');
       expect(sentMessage.type).toBe('TEST');
     });
   });
@@ -398,14 +402,13 @@ describe('P2PService', () => {
       expect(mockConn.send).toHaveBeenCalledTimes(1);
     });
 
-    test('should clean up old seen messages', () => {
+    test('should clean up old cached messages', () => {
       // Add 1001 messages to trigger cleanup
       for (let i = 0; i < 1001; i++) {
         P2PService.relay({ _id: `msg-${i}` }, 'source-peer');
       }
 
-      const seenKeys = Object.keys(P2PService.seenMessages);
-      expect(seenKeys.length).toBeLessThanOrEqual(1000);
+      expect(P2PService.messageCache.size).toBeLessThanOrEqual(1000);
     });
   });
 
@@ -488,6 +491,110 @@ describe('P2PService', () => {
 
       P2PService.addConnection(mockConn1);
       expect(P2PService.getConnectionCount()).toBe(1);
+    });
+  });
+
+  describe('setLocationCode()', () => {
+    test('should set location code', () => {
+      P2PService.setLocationCode('test-zone');
+      expect(P2PService.locationCode).toBe('test-zone');
+    });
+  });
+
+  describe('deduplication', () => {
+    beforeEach(async () => {
+      const connectPromise = P2PService.connect('my-peer-id');
+      P2PService.peer._simulateOpen();
+      await connectPromise;
+    });
+
+    test('should cache messages', () => {
+      const message = { _id: 'msg-123', type: 'TEST' };
+      P2PService.cacheMessage(message);
+      
+      expect(P2PService.isMessageCached('msg-123')).toBe(true);
+    });
+
+    test('should not process duplicate messages', () => {
+      const callback = jest.fn();
+      P2PService.setOnMessageReceived(callback);
+
+      const mockConn = {
+        peer: 'peer-1',
+        open: true,
+        _handlers: {},
+        on: function(event, handler) {
+          this._handlers[event] = handler;
+        }
+      };
+
+      P2PService.addConnection(mockConn);
+
+      const testData = { _id: 'msg-123', type: 'TEST', message: 'hello' };
+      mockConn._handlers.data(testData);
+      mockConn._handlers.data(testData); // Send same message again
+
+      // Callback should only be called once
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('periodic sync', () => {
+    beforeEach(async () => {
+      const connectPromise = P2PService.connect('my-peer-id');
+      P2PService.peer._simulateOpen();
+      await connectPromise;
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      P2PService.stopPeriodicSync();
+      jest.useRealTimers();
+    });
+
+    test('should start periodic sync', () => {
+      const publishCallback = jest.fn();
+      const fetchCallback = jest.fn();
+      
+      P2PService.startPeriodicSync(publishCallback, fetchCallback);
+      
+      expect(P2PService.publishInterval).not.toBeNull();
+      expect(P2PService.fetchInterval).not.toBeNull();
+    });
+
+    test('should call callbacks periodically', () => {
+      const publishCallback = jest.fn();
+      const fetchCallback = jest.fn();
+      
+      // Add a connection so callbacks will be triggered
+      const mockConn = {
+        peer: 'peer-1',
+        open: true,
+        send: jest.fn(),
+        _handlers: {},
+        on: function(event, handler) {
+          this._handlers[event] = handler;
+        }
+      };
+      P2PService.addConnection(mockConn);
+      
+      P2PService.startPeriodicSync(publishCallback, fetchCallback);
+      
+      // Fast-forward time
+      jest.advanceTimersByTime(5000);
+      
+      expect(publishCallback).toHaveBeenCalled();
+    });
+
+    test('should stop periodic sync', () => {
+      const publishCallback = jest.fn();
+      const fetchCallback = jest.fn();
+      
+      P2PService.startPeriodicSync(publishCallback, fetchCallback);
+      P2PService.stopPeriodicSync();
+      
+      expect(P2PService.publishInterval).toBeNull();
+      expect(P2PService.fetchInterval).toBeNull();
     });
   });
 });

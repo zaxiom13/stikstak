@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled from 'styled-components';
 import Header from './components/Header';
 import YakForm from './components/YakForm';
@@ -68,6 +68,7 @@ function App() {
   const [status, setStatus] = useState('Initializing...');
   const [showWelcome, setShowWelcome] = useState(false);
   const [connectionCount, setConnectionCount] = useState(0);
+  const yaksRef = useRef([]);
 
   // Check if user has seen welcome screen
   useEffect(() => {
@@ -86,8 +87,9 @@ function App() {
     setYaks(validYaks);
   }, []);
 
-  // Save to cache whenever yaks change
+  // Save to cache whenever yaks change and update ref
   useEffect(() => {
+    yaksRef.current = yaks;
     if (yaks.length > 0) {
       localStorage.setItem(YAK_CACHE_KEY, JSON.stringify(yaks));
     }
@@ -115,7 +117,9 @@ function App() {
       P2PService.setOnMessageReceived((data) => {
         if (data.type === 'NEW_YAK') {
           setYaks(prevYaks => {
+            // Deduplicate by checking if yak already exists
             if (prevYaks.find(y => y.id === data.payload.id)) {
+              console.log('Duplicate yak received, ignoring:', data.payload.id);
               return prevYaks;
             }
             return [data.payload, ...prevYaks];
@@ -144,6 +148,35 @@ function App() {
               return yak;
             });
           });
+        } else if (data.type === 'REQUEST_MESSAGES') {
+          // Peer is requesting all our messages, send them all
+          console.log('Peer requested messages, publishing all yaks...');
+          yaksRef.current.forEach(yak => {
+            P2PService.broadcast({ type: 'NEW_YAK', payload: yak });
+          });
+        } else if (data.type === 'SYNC_MESSAGES') {
+          // Bulk sync of messages from a peer
+          if (data.payload && Array.isArray(data.payload.yaks)) {
+            setYaks(prevYaks => {
+              const newYaks = [...prevYaks];
+              let addedCount = 0;
+              
+              data.payload.yaks.forEach(yak => {
+                // Only add if we don't already have it (deduplicate)
+                if (!newYaks.find(y => y.id === yak.id)) {
+                  newYaks.push(yak);
+                  addedCount++;
+                }
+              });
+              
+              if (addedCount > 0) {
+                console.log(`Synced ${addedCount} new yaks from peer`);
+                // Sort by timestamp
+                return newYaks.sort((a, b) => b.timestamp - a.timestamp);
+              }
+              return prevYaks;
+            });
+          }
         }
       });
 
@@ -158,6 +191,9 @@ function App() {
         console.error("Location error:", error);
         locationCode = await getLocationCode(); // Will use fallback
       }
+      
+      // Set location code in P2P service so all messages include it
+      P2PService.setLocationCode(locationCode);
 
       // Attempt to become host
       try {
@@ -165,6 +201,26 @@ function App() {
         const hostId = await P2PService.connect(locationCode);
         setPeerId(hostId);
         setStatus(`✓ This device is the host for zone: ${locationCode}. Waiting for peers...`);
+        
+        // Start periodic sync for publishing and fetching messages
+        P2PService.startPeriodicSync(
+          // Publish callback: periodically send all our yaks
+          () => {
+            setYaks(currentYaks => {
+              if (currentYaks.length > 0) {
+                console.log(`[Periodic Publish] Broadcasting ${currentYaks.length} yaks`);
+                // Send a bulk sync message
+                P2PService.broadcast({
+                  type: 'SYNC_MESSAGES',
+                  payload: { yaks: currentYaks }
+                });
+              }
+              return currentYaks;
+            });
+          },
+          // Fetch callback: already handled by requestMessagesFromPeers in P2PService
+          null
+        );
         
         // Set a timer to check if we got any connections
         const hostCheckTimer = setTimeout(() => {
@@ -205,6 +261,26 @@ function App() {
               if (count > 0) {
                 clearInterval(checkConnection);
                 setStatus(`✓ Connected to ${count} peer(s) in zone: ${locationCode}`);
+                
+                // Start periodic sync for publishing and fetching messages
+                P2PService.startPeriodicSync(
+                  // Publish callback: periodically send all our yaks
+                  () => {
+                    setYaks(currentYaks => {
+                      if (currentYaks.length > 0) {
+                        console.log(`[Periodic Publish] Broadcasting ${currentYaks.length} yaks`);
+                        // Send a bulk sync message
+                        P2PService.broadcast({
+                          type: 'SYNC_MESSAGES',
+                          payload: { yaks: currentYaks }
+                        });
+                      }
+                      return currentYaks;
+                    });
+                  },
+                  // Fetch callback: already handled by requestMessagesFromPeers in P2PService
+                  null
+                );
               } else if (attempts >= maxAttempts) {
                 clearInterval(checkConnection);
                 setStatus(`Warning: Connected to network but no peers found. You can still post!`);
@@ -261,7 +337,16 @@ function App() {
       votes: {},
     };
 
-    setYaks(prevYaks => [newYak, ...prevYaks]);
+    // Add to local state first
+    setYaks(prevYaks => {
+      // Deduplicate (shouldn't happen for new yak, but be safe)
+      if (prevYaks.find(y => y.id === newYak.id)) {
+        return prevYaks;
+      }
+      return [newYak, ...prevYaks];
+    });
+    
+    // Broadcast to peers
     P2PService.broadcast({ type: 'NEW_YAK', payload: newYak });
   };
 
