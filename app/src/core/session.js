@@ -9,7 +9,7 @@ import { firebaseConfig } from '../firebaseConfig.js'
 // a filled-in firebaseConfig = your Firebase project, otherwise public Nostr relays.
 export function pickMode(search = location.search) {
   const p = new URLSearchParams(search)
-  if (p.has('demo')) return 'demo'
+  if (p.has('demo') || import.meta.env.VITE_FORCE_DEMO) return 'demo'
   if (p.has('emulator')) return 'emulator'
   if (firebaseConfig?.apiKey && firebaseConfig?.databaseURL) return 'firebase'
   return 'nostr'

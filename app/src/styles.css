@@ -14,10 +14,14 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0e1412; --card: #18211e; --text: #eef5f2; --muted: #8b9994; --line: #26312d;
     --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1412; --card: #18211e; --text: #eef5f2; --muted: #8b9994; --line: #26312d;
+    --shadow: 0 1px 2px rgba(0,0,0,.4); color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body, #root { height: 100%; margin: 0; }
