@@ -1,143 +1,107 @@
-# YikYak Clone - Decentralized Anonymous Local Chat
+# 🐃 StikStak
 
-A modern, peer-to-peer YikYak clone that provides anonymous, location-based communication without a central server. Built with React and PeerJS for a truly decentralized experience.
+Anonymous, location-based yaks, the way the original Yik Yak felt, rebuilt so
+that **no server ever holds the posts**.
 
-## 🌟 Features
+- **New / 🔥 Hot** feeds of everything posted within ~5 miles
+- Up/down votes, **5 net downvotes and a yak disappears**
+- Replies with a per-thread anonymous emoji identity, **OP** badge
+- **Yakarma**, "N yakkers here" live herd count, "someone nearby is writing…"
+- **Peek** at other campuses (read-only)
+- 200 character limit, yaks fade out after 72h
+- Built phone-first: safe-area aware, bottom nav, thumb-reach compose button, dark mode
 
-- **🔒 Decentralized P2P Architecture**: No central server - messages are shared directly between peers
-- **📍 Location-Based Zones**: Automatic grouping by geographic area using geolocation
-- **👤 Anonymous Posting**: No signup required, completely anonymous
-- **⬆️⬇️ Voting System**: Upvote and downvote posts with real-time P2P synchronization
-- **🕸️ Mesh Network**: Messages propagate through the network for better reach
-- **💾 Local Persistence**: Posts cached locally and expire after 24 hours
-- **🎨 Modern UI**: Beautiful, responsive design with smooth animations
-- **🚀 Easy Signup**: No account creation needed - just open and start posting
+Screenshots from the automated test run are in [`app/screenshots/`](app/screenshots).
 
-## 🛠️ Technology Stack
+## How it resists censorship
 
-- **Frontend**: React 19.1.1
-- **Styling**: Styled Components
-- **P2P Networking**: PeerJS 1.5.5
-- **Location Services**: Browser Geolocation API
-- **Storage**: LocalStorage for persistence
+| What | Where it lives |
+| --- | --- |
+| Yak text, replies, votes, deletes | Only on phones. Signed on the device that wrote them, sent phone-to-phone over encrypted WebRTC data channels ([Trystero](https://github.com/dmotz/trystero)), kept in each phone's local storage. |
+| WebRTC handshake offers | Firebase Realtime Database, briefly, under `__trystero__/` |
+| Your identity | A random signing key generated on your phone. No account, no email, no phone number. |
 
-## 📦 Installation
+- Every message is signed (ECDSA P-256). Peers reject anything forged or edited,
+  so neither Firebase nor another user can alter a post.
+- Only the author's key can delete a yak. Downvotes (-5) are the only moderation, and they are the community's.
+- When a new phone joins the area, the phones already there hand it the recent history.
+- If Firebase ever went away or blocked you, the handshake can move to another
+  signalling network (the app already falls back to public Nostr relays when no
+  Firebase config is set) and every phone still has its copy of the stak.
+
+The trade-off: a yak lives as long as some phone nearby still has it. If
+everyone in an area closes the app for 3 days, that area starts fresh.
+
+## Try it
 
 ```bash
-cd client
+cd app
 npm install
+npm run dev          # open the printed URL on your phone (same Wi-Fi)
 ```
 
-## 🚀 Running the App
+- `/?demo` offline, with simulated neighbours posting and voting around you (best for playing solo)
+- no config: real peer-to-peer via public Nostr relays, open it on two phones
+- with your Firebase config: real peer-to-peer with Firebase doing the handshake
+
+## Firebase setup (free, and it can't bill you)
+
+The app only uses **Anonymous Auth** and **Realtime Database**. Both are on the
+free **Spark** plan. Spark has no billing account attached, so Google has no way
+to charge you: if a quota is ever hit, the service just pauses until the next
+day/month. **Do not upgrade to Blaze** and you can never be charged.
+(No Firestore, no Cloud Functions, no Storage: nothing here needs a paid plan.)
+
+1. [console.firebase.google.com](https://console.firebase.google.com) → **Add project**. Skip Google Analytics.
+   You stay on Spark by default; the console only asks for a card if you choose "Upgrade".
+2. **Build → Authentication → Get started → Sign-in method → Anonymous → Enable.**
+3. **Build → Realtime Database → Create database** (any region, start in *locked mode*).
+4. **Project settings → Your apps → Web (`</>`)**, register an app, copy the config.
+5. Create `app/.env.local`:
+   ```
+   VITE_FIREBASE_API_KEY=...
+   VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+   VITE_FIREBASE_PROJECT_ID=your-project
+   VITE_FIREBASE_DATABASE_URL=https://your-project-default-rtdb.firebaseio.com
+   VITE_FIREBASE_APP_ID=...
+   ```
+6. Deploy the database rules and host the app (Firebase Hosting is free on Spark too):
+   ```bash
+   npx firebase login
+   npx firebase use --add          # pick your project
+   npm run deploy                  # builds, deploys hosting + database.rules.json
+   ```
+   Open `https://your-project.web.app` on your phone.
+
+Spark limits that matter here: 100 simultaneous Realtime Database connections,
+1 GB stored, 10 GB/month downloaded, 10 GB hosting storage, 360 MB/day hosting
+transfer. Handshakes are tiny and deleted after use, so a campus-sized crowd fits
+comfortably. `database.rules.json` only allows signed-in users to write under
+`__trystero__/<room>`, so nobody can use your database as free storage.
+
+Optional hardening: turn on **App Check** (free) so only your site can use the project.
+
+## Tests
 
 ```bash
-cd client
-npm start
+npm test                          # unit tests: geohash, ranking, signatures, gossip store rules
+npm run emulators                 # terminal 1 (needs Java)
+npm run dev                       # terminal 2
+npm run e2e                       # terminal 3: three emulated iPhones over real WebRTC
 ```
 
-The app will open at `http://localhost:3000`
+The e2e run checks: phones discover each other, typing indicator, a yak posted on
+phone A shows up on B, B's upvote and reply show on A, a late-joining phone C
+receives the history from its peers, and **the Firebase database contains none of
+the text**.
 
-## 🔧 How It Works
+## Layout
 
-### P2P Architecture
-- Each user connects via PeerJS to form a mesh network
-- The first user in a geographic zone becomes the "host"
-- Other users connect as clients and link to the host
-- Messages propagate through the network to reach all users
-
-### Location Zones
-- Geographic coordinates are truncated to create zones (~1.1km area)
-- Zones are combined with the current date for daily rotation
-- Users in the same zone can see each other's posts
-
-### Anonymity & Privacy
-- No user registration or login required
-- No data stored on central servers
-- Posts are identified by temporary peer IDs
-- All communication is peer-to-peer
-
-### Data Persistence
-- Posts cached in browser's LocalStorage
-- Automatic expiration after 24 hours
-- Votes and scores synchronized across peers
-
-## 🎮 Usage
-
-1. **First Visit**: A welcome screen explains the app features
-2. **Location Permission**: Grant location access to join your local zone
-3. **Post a Yak**: Type your message (up to 200 characters) and hit "Post Yak"
-4. **Vote**: Upvote (▲) or downvote (▼) posts you see
-5. **Real-time Sync**: All actions sync automatically with other peers
-
-## 🔐 Privacy & Security
-
-- **No Central Database**: All data is peer-to-peer
-- **Anonymous by Design**: No personal information collected
-- **Local Storage Only**: Data stored only on your device
-- **24-Hour Expiry**: Posts automatically expire
-- **Distributed Architecture**: Resistant to single points of failure
-
-## 🎯 Key Features Explained
-
-### Voting System
-- Click upvote (▲) to increase score
-- Click downvote (▼) to decrease score
-- Click again to remove your vote
-- Scores sync across all connected peers
-- Visual feedback shows your active vote
-
-### Mesh Networking
-- Messages relay through multiple peers
-- Deduplication prevents message loops
-- Improves reliability and reach
-- No single point of failure
-
-### Location Zones
-- Automatic zone detection
-- Daily zone rotation for fresh content
-- Fallback zone if location is denied
-- ~1.1km geographic precision
-
-## 🛡️ Resistance Features
-
-- **Decentralized**: No central server to shut down
-- **P2P Mesh Network**: Messages propagate through multiple paths
-- **Anonymous**: No user accounts or tracking
-- **Local-First**: Works even with limited connectivity
-- **Public PeerJS Server**: Uses free infrastructure (can be self-hosted)
-
-## 🔮 Future Enhancements
-
-Potential improvements:
-- Comments/replies on posts
-- User profile avatars (anonymous)
-- Post reporting/moderation
-- Self-hosted PeerJS server option
-- PWA support for mobile
-- End-to-end encryption
-- Multi-peer discovery
-
-## ⚠️ Important Notes
-
-- The app works best with multiple users in the same zone
-- Requires browser support for Geolocation API
-- Uses the public PeerJS cloud server (consider hosting your own for production)
-- Connection quality depends on network conditions
-
-## 🤝 Contributing
-
-This is an open-source educational project. Feel free to fork and improve!
-
-## 📄 License
-
-MIT License - Feel free to use and modify as needed.
-
-## 🙏 Acknowledgments
-
-- Inspired by the original YikYak app
-- Built with PeerJS for P2P networking
-- Uses React and Styled Components for modern UI
-
----
-
-**Remember**: Use this app responsibly and be respectful to others in your community!
+```
+app/src/lib/crypto.js   signing keys, sign/verify
+app/src/core/store.js   local stak: validation, dedupe, votes, deletes, rate limits
+app/src/core/net.js     Trystero room per area, gossip + typing
+app/src/core/sim.js     ?demo simulated neighbours
+app/src/core/firebase.js  anonymous auth + RTDB handshake only
+app/src/App.jsx, components/  the UI
+```

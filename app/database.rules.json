@@ -1,0 +1,12 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "__trystero__": {
+      "$room": {
+        ".read": "auth != null && $room.length < 200",
+        ".write": "auth != null && $room.length < 200"
+      }
+    }
+  }
+}

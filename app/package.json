@@ -1,0 +1,29 @@
+{
+  "name": "stikstak",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "emulators": "firebase emulators:start --only auth,database --project demo-stikstak",
+    "e2e": "node scripts/e2e.mjs",
+    "deploy": "npm run build && firebase deploy --only hosting,database"
+  },
+  "dependencies": {
+    "@trystero-p2p/firebase": "^0.25.4",
+    "@trystero-p2p/nostr": "^0.25.4",
+    "firebase": "^12.19.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "firebase-tools": "^15.31.0",
+    "playwright-core": "^1.63.0",
+    "vite": "^8.3.1",
+    "vitest": "^5.0.2"
+  }
+}

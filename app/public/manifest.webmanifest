@@ -1,0 +1,10 @@
+{
+  "name": "StikStak",
+  "short_name": "StikStak",
+  "description": "Anonymous, peer-to-peer local yaks",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#16c79a",
+  "icons": []
+}
