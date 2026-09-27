@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import VoteColumn from './VoteColumn.jsx'
 import Compose from './Compose.jsx'
 import { useStak } from '../hooks.js'
@@ -11,6 +11,12 @@ export default function Thread({ yakId, app, now, onBack, readOnly }) {
   const replies = useStak(store, () => store.replies(yakId), [yakId])
   const [composing, setComposing] = useState(false)
   const me = threadIdentity(identity.id, yakId)
+  // Two-tap confirm (the first tap arms the button for 3 seconds).
+  const [armed, setArmed] = useState(null)
+  useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(null), 3000); return () => clearTimeout(t) }, [armed])
+  const confirmTap = (key, action) => () => { if (armed === key) { setArmed(null); action() } else setArmed(key) }
+  const [toast, setToast] = useState(null)
+  const report = id => app.report(id).then(() => setToast('Reported. It\'s hidden for you, and 3 reports hide it for everyone.'))
 
   if (!yak) {
     return (
@@ -26,7 +32,9 @@ export default function Thread({ yakId, app, now, onBack, readOnly }) {
       <header className="topbar">
         <button className="back" onClick={onBack} aria-label="Back">‹</button>
         <strong>Yak</strong>
-        {yak.mine ? <button className="text-btn danger" onClick={() => { if (confirm('Delete this yak for everyone?')) { app.remove(yak.id); onBack() } }}>Delete</button> : <span />}
+        {yak.mine
+          ? <button className="text-btn danger" onClick={confirmTap('del', () => { app.remove(yak.id); onBack() })}>{armed === 'del' ? 'Sure?' : 'Delete'}</button>
+          : readOnly ? <span /> : <button className="text-btn" onClick={confirmTap(yak.id, () => report(yak.id).then(onBack))} data-testid="report-yak">{armed === yak.id ? 'Sure?' : 'Report'}</button>}
       </header>
       <div className="scroll">
         <article className="card yak op" style={{ '--accent': yakColor(yak.id) }}>
@@ -49,6 +57,11 @@ export default function Thread({ yakId, app, now, onBack, readOnly }) {
                     {isOp && <span className="badge-op">OP</span>}
                     {r.mine && <span className="badge-me">You</span>}
                     <span className="muted">{timeAgo(r.createdAt, now)}</span>
+                    {!r.mine && !readOnly && (
+                      <button className="report-link" onClick={confirmTap(r.id, () => report(r.id))}>
+                        {armed === r.id ? 'Tap to confirm' : 'Report'}
+                      </button>
+                    )}
                   </div>
                   <p>{r.text}</p>
                 </div>
@@ -58,6 +71,7 @@ export default function Thread({ yakId, app, now, onBack, readOnly }) {
           })}
         </div>
       </div>
+      {toast && <div className="toast" onAnimationEnd={() => setToast(null)}>{toast}</div>}
       {!readOnly && (
         <button className="reply-bar" onClick={() => setComposing(true)} data-testid="reply-bar">
           <span className="avatar" style={{ background: yak.mine ? 'var(--brand)' : me.color }}>{yak.mine ? '🐃' : me.icon}</span>

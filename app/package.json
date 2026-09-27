@@ -16,6 +16,7 @@
     "@trystero-p2p/firebase": "^0.25.4",
     "@trystero-p2p/nostr": "^0.25.4",
     "firebase": "^12.19.0",
+    "obscenity": "^0.4.6",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

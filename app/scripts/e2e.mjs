@@ -63,10 +63,26 @@ try {
   await b.getByRole('button', { name: 'Back' }).click()
   await shot(b, '3-feed-phone-b')
 
+  // Content rules: the composer refuses, and nothing goes out.
+  await a.getByTestId('fab').click()
+  await a.getByTestId('compose-input').fill('call jess at 555-867-5309 lol')
+  await a.getByTestId('send').click()
+  await a.getByTestId('compose-hint').filter({ hasText: 'No phone numbers' }).waitFor({ timeout: 5000 })
+  await shot(a, '5-blocked')
+  await a.getByRole('button', { name: 'Cancel' }).click()
+  step('a post with a phone number is blocked before it leaves the phone')
+
   // A late joiner receives history from the phones already there.
   const c = await open('C')
   await c.getByTestId('yak').filter({ hasText: text }).waitFor({ timeout: 30000 })
   step('late-joining phone C got the yak from its peers (no server copy)')
+
+  // Reporting: C reports the yak, it disappears from C's feed.
+  await c.getByTestId('yak').filter({ hasText: text }).click()
+  await c.getByTestId('report-yak').click()
+  await c.getByTestId('report-yak').click()
+  await c.getByTestId('yak').filter({ hasText: text }).waitFor({ state: 'detached', timeout: 10000 })
+  step('reporting a yak hides it for the reporter (3 reports hide it for everyone)')
 
   const dump = await (await fetch(`${DB}/.json?ns=demo-stikstak`, { headers: { Authorization: 'Bearer owner' } })).text()
   if (dump.includes('pizza') || dump.includes('omw')) throw new Error('yak text found in Firebase!')

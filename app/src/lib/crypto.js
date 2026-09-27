@@ -42,9 +42,11 @@ export async function loadIdentity(storage, storageKey = 'stikstak-identity') {
   return idn
 }
 
-// body -> { ...body, pub, sig, id }
-export async function signMessage(identity, body) {
+// body -> { ...body, pub, sig, id }. `work` (optional) computes a proof-of-work
+// nonce over the unsigned message, which then gets signed along with it.
+export async function signMessage(identity, body, work) {
   const unsigned = { ...body, pub: identity.pub }
+  if (work) unsigned.pow = await work(unsigned)
   const bytes = enc.encode(canonical(unsigned))
   const sig = b64u(await subtle.sign(SIG, identity.key, bytes))
   return { ...unsigned, sig, id: (await sha(canonical(unsigned) + sig)).slice(0, 20) }

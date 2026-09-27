@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { startSession } from './core/session.js'
 import { signMessage } from './lib/crypto.js'
+import { solve } from './lib/pow.js'
 import { fuzz } from './lib/geo.js'
 import { sortFeed, yakarma } from './lib/yak.js'
 import { PLACES } from './lib/places.js'
@@ -54,7 +55,8 @@ function Main({ session, center, peek, tab, setTab, openYak, setOpenYak, onPeek,
   }, [session, center])
 
   const publish = useCallback(async body => {
-    const m = await signMessage(identity, { ...body, ts: Date.now() })
+    const needsWork = ['yak', 'reply', 'report'].includes(body.t)
+    const m = await signMessage(identity, { ...body, ts: Date.now() }, needsWork ? solve : undefined)
     if (netRef.current) await netRef.current.publish(m)
     else await store.apply(m, { trusted: true })
     return m
@@ -65,6 +67,7 @@ function Main({ session, center, peek, tab, setTab, openYak, setOpenYak, onPeek,
     vote: (target, value) => publish({ t: 'vote', target, value }),
     reply: (yakId, text, me) => publish({ t: 'reply', yakId, text, icon: me.icon, color: me.color }),
     remove: target => publish({ t: 'del', target }),
+    report: target => publish({ t: 'report', target }),
     setTyping: on => netRef.current?.setTyping(on),
   }), [store, identity, publish])
 
@@ -207,6 +210,15 @@ function LocationGate({ onPick }) {
         <div className="gate-logo">🐃</div>
         <h1>StikStak</h1>
         <p>Anonymous yaks from people within 5 miles. No accounts. No server keeping your posts.</p>
+      </div>
+      <div className="rules">
+        <b>House rules.</b> Posts that break these are blocked on every phone, and 3 reports hide a yak.
+        <ul>
+          <li>No threats, bullying or hate</li>
+          <li>No names, numbers, addresses or handles</li>
+          <li>No sexual content</li>
+        </ul>
+        By continuing you agree to these rules.
       </div>
       <button className="big-btn" onClick={locate} data-testid="use-location">📍 Use my location</button>
       {status && <p className="muted center">{status}</p>}

@@ -32,6 +32,27 @@ Screenshots from the automated test run are in [`app/screenshots/`](app/screensh
 The trade-off: a yak lives as long as some phone nearby still has it. If
 everyone in an area closes the app for 3 days, that area starts fresh.
 
+## Moderation and bot protection
+
+Every phone enforces the same rules, both when you write and when it receives
+from peers, so a rule-breaking post never shows up in anyone's copy of the app.
+
+- **Content filter** (`src/lib/moderation.js`, runs on-device, free): blocks slurs,
+  sexual content, threats/self-harm taunts, phone numbers, emails, street
+  addresses, social handles and links. Casual swearing is allowed.
+- **Reports**: tapping Report hides the post for you right away; 3 reports from
+  different people hide it for everyone.
+- **Proof of work**: every yak, reply and report carries ~0.5–1s of phone CPU
+  work. That's invisible to a person and makes a flood of bot posts expensive.
+- **Rate limits per anonymous key**: 4 posts/min, 20 posts/hour, 60 votes/min,
+  10 reports/hour. Each phone also stops listening to a peer that sends too much.
+- House rules are shown, and agreed to, before you enter.
+- The `?demo` simulated neighbours skip proof of work but still follow the content rules.
+
+The limits: a word filter misses things (misspellings, context, names), and
+someone can make new keys, though each one still costs proof of work. An AI
+moderation service could be added later on top of this.
+
 ## Try it
 
 ```bash

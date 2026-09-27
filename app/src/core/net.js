@@ -6,6 +6,9 @@ import { encode } from '../lib/geo.js'
 
 const ROOM_PRECISION = 4 // ~39km x 20km, comfortably covers a 5 mile feed
 const CHUNK = 40
+// A peer may hand us its whole history once, then only a trickle. Past this
+// budget per minute we drop its batches (and the store's own limits apply too).
+const PEER_BUDGET_PER_MIN = 800
 
 export async function joinStak({ mode, firebaseApp, center, store, onHerd }) {
   const roomId = `stak-${encode(center.lat, center.lng, ROOM_PRECISION)}`
@@ -37,10 +40,16 @@ export async function joinStak({ mode, firebaseApp, center, store, onHerd }) {
   }
 
   room.onPeerJoin = id => { peers.add(id); emit(); sendAll(id) }
-  room.onPeerLeave = id => { peers.delete(id); clearTimeout(typing.get(id)); typing.delete(id); emit() }
-  msgAction.onMessage = async batch => {
+  room.onPeerLeave = id => { peers.delete(id); budget.delete(id); clearTimeout(typing.get(id)); typing.delete(id); emit() }
+  const budget = new Map() // peerId -> { start, used }
+  msgAction.onMessage = async (batch, { peerId }) => {
     if (!Array.isArray(batch)) return
-    for (const m of batch.slice(0, 500)) await store.apply(m)
+    const now = Date.now()
+    let b = budget.get(peerId)
+    if (!b || now - b.start > 60e3) budget.set(peerId, (b = { start: now, used: 0 }))
+    b.used += batch.length
+    if (b.used > PEER_BUDGET_PER_MIN) return
+    for (const m of batch.slice(0, CHUNK)) await store.apply(m)
   }
   typingAction.onMessage = (on, { peerId }) => {
     clearTimeout(typing.get(peerId))
